@@ -1,0 +1,8 @@
+bin/
+gen/
+jar/
+classes/
+tests/test.sql
+*.iml
+.idea
+target

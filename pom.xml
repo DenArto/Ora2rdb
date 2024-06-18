@@ -165,12 +165,6 @@
             </plugin>
           </plugins>
         </pluginManagement>
-        <plugins>
-          <plugin>
-            <groupId>ru.red-soft.maven.plugin</groupId>
-            <artifactId>releasehub-build-plugin</artifactId>
-          </plugin>
-        </plugins>
       </build>
     </profile>
   </profiles>
