@@ -40,11 +40,6 @@ public class Ora2rdb {
 
     static RewritingListener convert(InputStream is) throws IOException {
         List<String> splitBlocks = splitMetadataIntoBlocks(is);
-        System.out.println("splitBlocks");
-        for (String s : splitBlocks){
-            System.out.println("Block");
-            System.out.println(s);
-        }
 
         StringBuilder mergedBlocks = new StringBuilder();
         for (String singleBlock : splitBlocks) {
