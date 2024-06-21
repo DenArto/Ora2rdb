@@ -1,9 +1,6 @@
 package ru.redsoft.ora2rdb;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintStream;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeMap;
@@ -42,7 +39,29 @@ public class Ora2rdb {
     }
 
     static RewritingListener convert(InputStream is) throws IOException {
-        CharStream input = CharStreams.fromStream(is);
+        List<String> splitBlocks = splitMetadataIntoBlocks(is);
+        System.out.println("splitBlocks");
+        for (String s : splitBlocks){
+            System.out.println("Block");
+            System.out.println(s);
+        }
+
+        StringBuilder mergedBlocks = new StringBuilder();
+        for (String singleBlock : splitBlocks) {
+            try {
+                CharStream input = CharStreams.fromString(singleBlock);
+                PlSqlLexer lexer = new PlSqlLexer(input);
+                CommonTokenStream tokens = new CommonTokenStream(lexer);
+                PlSqlParser parser = new PlSqlParser(tokens);
+                parser.setErrorHandler(new BailErrorStrategy());
+                ParserRuleContext tree = parser.sql_script();  // пытаемся запарсить
+                mergedBlocks.append(singleBlock).append("\n");
+            } catch (Exception e) {
+                mergedBlocks.append("/*").append(singleBlock).append("*/").append("\n");
+            }
+        }
+
+        CharStream input = CharStreams.fromString(mergedBlocks.toString());
         PlSqlLexer lexer = new PlSqlLexer(input);
         CommonTokenStream tokens = new CommonTokenStream(lexer);
         PlSqlParser parser = new PlSqlParser(tokens);
@@ -62,6 +81,51 @@ public class Ora2rdb {
 
         StorageInfo.clearInfo();
         return converter;
+    }
+
+    private static List<String> splitMetadataIntoBlocks(InputStream inputStream) {
+        List<String> sqlQueries = new ArrayList<>();
+        StringBuilder currentBlock = new StringBuilder();
+        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+
+        String line;
+        boolean insideCommentBlock = false;
+
+        try {
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (!line.isEmpty()) { // Игнорируем пустые строки
+                    if (line.startsWith("/*") || insideCommentBlock) {  // проверям на наличие комментариев /* */
+                        insideCommentBlock = true;
+                        if (line.contains("*/")) {
+                            insideCommentBlock = false;
+                            currentBlock.append(line).append("\n");
+                            sqlQueries.add(currentBlock.toString());
+                            currentBlock.setLength(0); // Очищаем буфер для следующего запроса
+                            continue;
+                        } else {
+                            currentBlock.append(line).append("\n");
+                            continue;
+                        }
+                    }
+                    currentBlock.append(line).append("\n");
+                    if (line.endsWith(";")) { // Найден конец SQL запроса
+                        sqlQueries.add(currentBlock.toString());
+                        currentBlock.setLength(0); // Очищаем буфер для следующего запроса
+                    }
+                }
+            }
+            // Если последний блок не заканчивается ; , то тоже добавляем
+            if (currentBlock.length() > 0) {
+                sqlQueries.add(currentBlock.toString().trim());
+            }
+
+            reader.close();
+        } catch (IOException e) {
+            System.err.println(e.getMessage());
+        }
+
+        return sqlQueries;
     }
 
     public static void main(String[] args) throws Exception {
