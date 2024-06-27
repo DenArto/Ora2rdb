@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.tree.*;
 
 public class Ora2rdb {
     public static boolean reorder = false;
+    static SqlCodeParser sqlCodeParser = new SqlCodeParser();
 
     static String stripQuotes(String str) {
         if (str.startsWith("\""))
@@ -39,7 +40,7 @@ public class Ora2rdb {
     }
 
     static RewritingListener convert(InputStream is) throws IOException {
-        List<String> splitBlocks = splitMetadataIntoBlocks(is);
+        List<String> splitBlocks = sqlCodeParser.splitMetadataIntoBlocks(is);
 
         StringBuilder mergedBlocks = new StringBuilder();
         for (String singleBlock : splitBlocks) {
@@ -49,7 +50,7 @@ public class Ora2rdb {
                 CommonTokenStream tokens = new CommonTokenStream(lexer);
                 PlSqlParser parser = new PlSqlParser(tokens);
                 parser.setErrorHandler(new BailErrorStrategy());
-                ParserRuleContext tree = parser.sql_script();  // пытаемся запарсить
+                ParserRuleContext tree = parser.sql_script();
                 mergedBlocks.append(singleBlock).append("\n");
             } catch (Exception e) {
                 mergedBlocks.append("/*").append(singleBlock).append("*/").append("\n");
@@ -76,51 +77,6 @@ public class Ora2rdb {
 
         StorageInfo.clearInfo();
         return converter;
-    }
-
-    private static List<String> splitMetadataIntoBlocks(InputStream inputStream) {
-        List<String> sqlQueries = new ArrayList<>();
-        StringBuilder currentBlock = new StringBuilder();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-
-        String line;
-        boolean insideCommentBlock = false;
-
-        try {
-            while ((line = reader.readLine()) != null) {
-                line = line.trim();
-                if (!line.isEmpty()) { // Игнорируем пустые строки
-                    if (line.startsWith("/*") || insideCommentBlock) {  // проверям на наличие комментариев /* */
-                        insideCommentBlock = true;
-                        if (line.contains("*/")) {
-                            insideCommentBlock = false;
-                            currentBlock.append(line).append("\n");
-                            sqlQueries.add(currentBlock.toString());
-                            currentBlock.setLength(0); // Очищаем буфер для следующего запроса
-                            continue;
-                        } else {
-                            currentBlock.append(line).append("\n");
-                            continue;
-                        }
-                    }
-                    currentBlock.append(line).append("\n");
-                    if (line.endsWith(";")) { // Найден конец SQL запроса
-                        sqlQueries.add(currentBlock.toString());
-                        currentBlock.setLength(0); // Очищаем буфер для следующего запроса
-                    }
-                }
-            }
-            // Если последний блок не заканчивается ; , то тоже добавляем
-            if (currentBlock.length() > 0) {
-                sqlQueries.add(currentBlock.toString().trim());
-            }
-
-            reader.close();
-        } catch (IOException e) {
-            System.err.println(e.getMessage());
-        }
-
-        return sqlQueries;
     }
 
     public static void main(String[] args) throws Exception {
