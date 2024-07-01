@@ -1,9 +1,6 @@
 package ru.redsoft.ora2rdb;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintStream;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeMap;
@@ -14,6 +11,8 @@ import org.antlr.v4.runtime.tree.*;
 
 public class Ora2rdb {
     public static boolean reorder = false;
+    static SqlCodeParser sqlCodeParser = new SqlCodeParser();
+    final static String errorMessage = "Found error(s) in file while parsing\n";
 
     static String stripQuotes(String str) {
         if (str.startsWith("\""))
@@ -42,7 +41,33 @@ public class Ora2rdb {
     }
 
     static RewritingListener convert(InputStream is) throws IOException {
-        CharStream input = CharStreams.fromStream(is);
+        List<String> splitBlocks = sqlCodeParser.splitMetadataIntoBlocks(is);
+
+        StringBuilder mergedBlocks = new StringBuilder();
+        StringBuilder errors = new StringBuilder();
+        for (String singleBlock : splitBlocks) {
+            try {
+                CharStream input = CharStreams.fromString(singleBlock);
+                PlSqlLexer lexer = new PlSqlLexer(input);
+                CommonTokenStream tokens = new CommonTokenStream(lexer);
+                PlSqlParser parser = new PlSqlParser(tokens);
+                parser.setErrorHandler(new BailErrorStrategy());
+                ParserRuleContext tree = parser.sql_script();
+                mergedBlocks.append(singleBlock).append("\n");
+            } catch (Exception e) {
+                errors.append(e.getMessage()).append("\n");
+                mergedBlocks.append("/*").append(e.getMessage()).append(singleBlock).append("*/").append("\n");
+            }
+        }
+        if (errors.length() != 0) {
+            errors.insert(0, errorMessage);
+            errors.insert(0, "/*");
+            errors.append("*/").append("\n");
+            errors.append(mergedBlocks);
+            mergedBlocks.setLength(0);
+            mergedBlocks.append(errors);
+        }
+        CharStream input = CharStreams.fromString(mergedBlocks.toString());
         PlSqlLexer lexer = new PlSqlLexer(input);
         CommonTokenStream tokens = new CommonTokenStream(lexer);
         PlSqlParser parser = new PlSqlParser(tokens);
