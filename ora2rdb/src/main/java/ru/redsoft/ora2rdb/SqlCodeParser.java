@@ -26,6 +26,10 @@ public class SqlCodeParser {
             if (splittedInput.get(i).isEmpty()) {
                 continue;
             }
+            if (splittedInput.get(i).matches("^[ ]*$")) {
+                currentBlock.append(splittedInput.get(i));
+                continue;
+            }
             if (checkIfInCommentOrQuote(splittedInput.get(i))) {
                 continue;
             }
@@ -206,8 +210,9 @@ public class SqlCodeParser {
                 String[] lines = line.split("\\r?\\n");
 
                 for (String l : lines) {
-
+                    String whiteSpace = countLeadingSpaces(l);
                     String[] words = l.split("\\s+");
+                    combinedWords.add(whiteSpace);
                     for (String word : words) {
                         combinedWords.add(word);
                     }
@@ -221,5 +226,16 @@ public class SqlCodeParser {
         return combinedWords;
     }
 
+    private String countLeadingSpaces(String text) {
+        StringBuilder whiteSpace = new StringBuilder();
+        for (int i = 0; i < text.length(); i++) {
+            if (text.charAt(i) == ' ') {
+                whiteSpace.append(' ');
+            } else {
+                break;
+            }
+        }
+        return whiteSpace.toString();
+    }
 
 }
